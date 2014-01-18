@@ -2,6 +2,7 @@ require("jsb.js");
 
 var appFiles = [
     'resource.js',
+    'water.js',
     'myApp.js'
 ];
 

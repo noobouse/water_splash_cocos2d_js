@@ -13,6 +13,7 @@
         //SingleEngineFile:'',
         appFiles:[
             'resource.js',
+            'water.js',
             'myApp.js'
         ]
     };
