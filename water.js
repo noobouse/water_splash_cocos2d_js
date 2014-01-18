@@ -37,8 +37,8 @@ var WaterNode = cc.Node.extend({
         for (var i = 0; i < COLUMN_COUNT; ++i)
             this._columns.push(new WaterColumn);
 
-        var lightBlue = cc.c4f(0, 50/255, 200/255, 1);
-        var darkBlue = cc.c4f(0, 50/255, 100/255, 1);
+        var lightBlue = cc.c4f(0, 50 / 255, 200 / 255, 1);
+        var darkBlue = cc.c4f(0, 50 / 255, 100 / 255, 1);
 
         for (var i = 0; i < COLUMN_COUNT; ++i) {
             var j = 8 * i;
@@ -67,14 +67,23 @@ var WaterNode = cc.Node.extend({
         this._target = target; // in js-binding, we can not overwrite draw() by default, so we use RenderTexture draw with opengl
 
         this._particles = [];
-        target = cc.RenderTexture.create(winSize.width, winSize.height);
+
+        this.scheduleUpdate();
+    },
+    onEnter: function() {
+        this._super();
+        var target = cc.RenderTexture.create(winSize.width, winSize.height);
         target.setPosition(winSize.width / 2, winSize.height / 2);
         this._particlesTarget = target;
         target.retain(); // since it is not added as child, so we need to call this for js-binding so that native object not autoreleased. call release when not used
         var sp = this._particleSprite = cc.Sprite.create(s_MetaParticalPNG);
         sp.setColor(cc.c3b(0, 50, 200));
-
-        this.scheduleUpdate();
+        sp.retain();
+    },
+    onExit: function() {
+        this._super();
+        this._particlesTarget.release();
+        this._particleSprite.release();
     },
     update: function(dt) {
         //if(this.particleTest) return;
