@@ -32,6 +32,8 @@ var WaterNode = cc.Node.extend({
         this._rightDeltas = [];
         this._vertexArray = new Float32Array(COLUMN_COUNT * 4);
         this._colorArray = new Float32Array(COLUMN_COUNT * 8);
+        this._edgeVertexArray = new Float32Array(COLUMN_COUNT * 4);
+        this._edgeColorArray = new Float32Array(COLUMN_COUNT * 8);
 
         this._columns = [];
         for (var i = 0; i < COLUMN_COUNT; ++i)
@@ -52,12 +54,24 @@ var WaterNode = cc.Node.extend({
             this._colorArray[j++] = darkBlue.a;
         }
 
+        for (var i = 0; i < COLUMN_COUNT; ++i) {
+            var j = 8 * i;
+            this._edgeColorArray[j++] = lightBlue.r;
+            this._edgeColorArray[j++] = lightBlue.g;
+            this._edgeColorArray[j++] = lightBlue.b;
+            this._edgeColorArray[j++] = 0;
+            this._edgeColorArray[j++] = lightBlue.r;
+            this._edgeColorArray[j++] = lightBlue.g;
+            this._edgeColorArray[j++] = lightBlue.b;
+            this._edgeColorArray[j++] = lightBlue.a;
+        }
+
         this._scale = winSize.width / (COLUMN_COUNT - 1);
 
         this._shaderProgram = cc.ShaderCache.getInstance().getProgram("ShaderPositionColor");
         this._alphaTestShader = cc.ShaderCache.getInstance().getProgram("ShaderPositionTextureColorAlphaTest");
         this._glprogram = this._alphaTestShader.getProgram();
-        this._alphaValueLocation = gl.getUniformLocation(this._glprogram, cc.UNIFORM_ALPHA_TEST_VALUE_S);
+        this._alphaValueLocation = gl.getUniformLocation(this._glprogram, "CC_alpha_value"); //cc.UNIFORM_ALPHA_TEST_VALUE_S has wrong value "CC_AlphaValue" in cocos2dx-v2.2.1
         this._pointBuffer = gl.createBuffer();
         this._colorBuffer = gl.createBuffer();
 
@@ -115,13 +129,18 @@ var WaterNode = cc.Node.extend({
         }
 
         var verts = this._vertexArray;
+        var edges = this._edgeVertexArray;
         for (var i = 0; i < COLUMN_COUNT; i++) {
             var x = i * this._scale;
             var y = cs[i].Height;
             var j = 4 * i;
+            edges[j] = x;
             verts[j++] = x;
+            edges[j] = y+10;
             verts[j++] = y;
+            edges[j] = x;
             verts[j++] = x;
+            edges[j] = y;
             verts[j++] = 0;
         }
 
@@ -159,8 +178,9 @@ var WaterNode = cc.Node.extend({
 
         // set alpha test value
         // NOTE: alpha test shader is hard-coded to use the equivalent of a glAlphaFunc(GL_GREATER) comparison                                                                                      
-        gl.useProgram(this._glprogram);
-        this._alphaTestShader.setUniformLocationF32(this._alphaValueLocation, 0.25);
+        this._alphaTestShader.use();
+        this._alphaTestShader.setUniformsForBuiltins();
+        this._alphaTestShader.setUniformLocationF32(this._alphaValueLocation, sys.platform == "browser" ? 0.25 : 0.8);
         this._particlesTarget.getSprite().setShaderProgram(this._alphaTestShader);
 
         this._particlesTarget.visit();
@@ -169,7 +189,10 @@ var WaterNode = cc.Node.extend({
     },
     draw_: function() {
         this._shaderProgram.use();
+        this._shaderProgram.setUniformsForBuiltins();
         cc.glEnableVertexAttribs(cc.VERTEX_ATTRIB_FLAG_POSITION | cc.VERTEX_ATTRIB_FLAG_COLOR);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this._pointBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, this._vertexArray, gl.STATIC_DRAW);
@@ -179,6 +202,16 @@ var WaterNode = cc.Node.extend({
         gl.vertexAttribPointer(cc.VERTEX_ATTRIB_COLOR, 4, gl.FLOAT, false, 0, 0);
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, COLUMN_COUNT * 2);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._pointBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this._edgeVertexArray, gl.STATIC_DRAW);
+        gl.vertexAttribPointer(cc.VERTEX_ATTRIB_POSITION, 2, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._colorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this._edgeColorArray, gl.STATIC_DRAW);
+        gl.vertexAttribPointer(cc.VERTEX_ATTRIB_COLOR, 4, gl.FLOAT, false, 0, 0);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, COLUMN_COUNT * 2);
+
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
     },
     GetHeight: function(x) {
@@ -190,7 +223,7 @@ var WaterNode = cc.Node.extend({
     Splash: function(x, speed) {
         var index = Math.floor(x / this._scale);
         if (index > 0 && index < COLUMN_COUNT)
-            this._columns[index].Speed = speed / 2;
+            this._columns[index].Speed = speed / 4;
         this.CreateSplashParticles(x, speed);
     },
     FromPolar: function(angle, magnitude) {
